@@ -1,3 +1,6 @@
+// Importamos el modulo dotenv *IMPORTANTE PONER PRIMERO QUE EL MODULO NOTE*
+require('dotenv').config()
+
 // Importa el módulo Express, que se utiliza para crear aplicaciones web en Node.js.
 const express = require('express')
  
@@ -6,6 +9,10 @@ const app = express()
 
 // Importamos el middleware Morgan
 const morgan = require('morgan')
+
+// Importamos el modelo Person
+const Person = require('./models/person')
+
 
 // Middleware para analizar solicitudes JSON
 app.use(express.json());
@@ -18,29 +25,6 @@ morgan.token('body', (request) => JSON.stringify(request.body));
 app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
 
 
-// Define una lista inicial de personas como datos simulados.
-let persons = [
-    { 
-        "id": 1,
-        "name": "Arto Hellas", 
-        "number": "040-123456"
-      },
-      { 
-        "id": 2,
-        "name": "Ada Lovelace", 
-        "number": "39-44-5323523"
-      },
-      { 
-        "id": 3,
-        "name": "Dan Abramov", 
-        "number": "12-43-234345"
-      },
-      { 
-        "id": 4,
-        "name": "Mary Poppendieck", 
-        "number": "39-23-6423122"
-      }
-]
 
 
 // Middleware para servir archivos estáticos desde la carpeta "dist".
@@ -56,7 +40,8 @@ const requestLogger = (request, response, next) => {
 }
 
 // Importa el módulo CORS, que permite solicitudes de diferentes orígenes.
-const cors = require('cors')
+const cors = require('cors');
+
 
 // Habilita el soporte para solicitudes desde otros dominios.
 app.use(cors())
@@ -73,30 +58,27 @@ const unknownEndpoint = (request, response) => {
 
 // Ruta para obtener todos los numeros telefonicos  
   app.get('/api/persons', (request, response) => {
+    Person.find({}).then(persons =>{ // Obtiene las personas desde person.js
+      console.log(persons); // Verifica que los datos incluyen `phone`
     response.json(persons)
+  })
+  // Manejo de errores
+  .catch ((error) => next (error));
   })
 
   // Ruta para obtener un registro específico
 app.get('/api/persons/:id', (request, response) => {
-    // Extraemos el parametro ID del array y lo convertimos en un valor numerico
-    const id = Number(request.params.id);
-    // Usamos el método find para encontrar el ID solicitdado
-    const person = persons.find(person => person.id === id);
- 
-    // Condicional
-    if (person) { // Si encuentra el ID responde con el método Find con el ID solicitado
-        response.json(person);
-    } else { // Si no lo encuentra responde con el error 404
-        response.status(404).end();
-    }
-});
+  Person.findById(request.params.id).then((person) => {
+    response.json(person);
+  }) 
+})
 
   // Ruta para obtener la información
   app.get('/info', (request, response) =>{
     // Creamos la variable con la Fecha
     const date = new Date(); // Fecha y hora actual
     // Creamos la variable para que muestre la cantida de personas registradas
-    const count = persons.length // Método para recorrer todo el array
+    const count = person.length // Método para recorrer todo el array
 
       // Respuesta con la información solicitada
       response.send(`
@@ -125,25 +107,14 @@ app.delete('/api/persons/:id', (request, response) => {
     }
 });
 
-// Manejadores para agregar nuevas entradas
-// Ruta para crear un ID único para la nueva entrada
-const generateId =()=> {
-    // Si el array 'persons' tiene elementos, obtenemos el mayor ID existente
-    const maxId = persons.length > 0
-    // Creamos un array con los IDs de las personas y encontramos el mayor
-    ? Math.max(...persons.map(p => p.id)) // El array se puede transformar en números individuales mediante el uso de la sintaxis de spread (tres puntos) 
-    :0; // Si el array está vacío, el mayor ID es 0
 
-    // Retornamos el siguiente ID, asegurándonos de que sea único
-    return maxId +1 ;
-};
 
 // Ruta para agregar nuevas entradas
 app.post('/api/persons', (request, response) => {
     const body = request.body;
 
     // Validación: Nombre y número son obligatorios
-    if (!body.name || !body.number) {
+    if (!body.name || !body.phone) {
         return response.status(400).json({
             error: 'name and number are required'
         });
@@ -158,17 +129,23 @@ app.post('/api/persons', (request, response) => {
     }
 
     // Creación del nuevo objeto 'person'
-    const person = {
-        id: generateId(),
-        name: body.name,
-        number: body.number
-    };
+    const person = new Person ({
+      name: body.name,
+      phone: body.phone,
+    });
 
-    // Agregar la nueva entrada al array
-    persons = persons.concat(person);
-
-    // Responder con el objeto recién creado
-    response.json(person);
+    // Intenta salvar la persona en la base de datos
+    person
+    .save()
+    .then((savedPerson) => {
+      // Si se guarda con éxito, responde con el objeto de la nota guardada.
+      response.json(savedPerson);
+    })
+    // Manejo de errores
+    .catch((error) => {
+      // Si ocurre un error durante el guardado, responde con un código de estado 500 (Error interno del servidor).
+      response.status(500).json({error: 'error saving person'});
+    })
 });
 
 // Aplica el middleware para manejar endpoints desconocidos.
@@ -176,7 +153,7 @@ app.use(unknownEndpoint)
   
 // Define el puerto en el que se ejecutará el servidor.
 // Si no está definido en las variables de entorno, usa el puerto 3001.
-const PORT = process.env.PORT || 3001
+const PORT = process.env.PORT 
 // Inicia el servidor y muestra un mensaje indicando el puerto.
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
