@@ -113,20 +113,13 @@ app.delete('/api/persons/:id', (request, response) => {
 app.post('/api/persons', (request, response) => {
     const body = request.body;
 
-    // Validación: Nombre y número son obligatorios
-    if (!body.name || !body.phone) {
-        return response.status(400).json({
-            error: 'name and number are required'
-        });
-    }
+  // Verifica si 'content' no está presente en el cuerpo de la solicitud.
+  // Si falta, responde con un código de estado 400 (Bad Request) y un mensaje de error.
+  if (!body.content) {
+    return response.status(400).json({ error: 'content missing' });
+  }
 
-    // Validación: El nombre debe ser único
-    const nameExists = persons.some(person => person.name === body.name);
-    if (nameExists) {
-        return response.status(400).json({
-            error: 'name must be unique'
-        });
-    }
+
 
     // Creación del nuevo objeto 'person'
     const person = new Person ({
