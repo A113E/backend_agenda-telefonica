@@ -113,11 +113,12 @@ app.delete('/api/persons/:id', (request, response) => {
 app.post('/api/persons', (request, response) => {
     const body = request.body;
 
-  // Verifica si 'content' no está presente en el cuerpo de la solicitud.
-  // Si falta, responde con un código de estado 400 (Bad Request) y un mensaje de error.
-  if (!body.content) {
-    return response.status(400).json({ error: 'content missing' });
-  }
+    // Validación: Nombre y número son obligatorios
+    if (!body.name || !body.phone) {
+        return response.status(400).json({
+            error: 'name and number are required'
+        });
+    }
 
 
 
