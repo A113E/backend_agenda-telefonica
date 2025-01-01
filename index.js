@@ -7,30 +7,22 @@ const express = require('express')
 // Crea una instancia de la aplicación Express.
 const app = express()
 
-// Importamos el middleware Morgan
-const morgan = require('morgan')
 
 // Importamos el modelo Person
 const Person = require('./models/person')
 
+// Importa el módulo CORS, que permite solicitudes de diferentes orígenes.
+const cors = require('cors');
 
-// Middleware para analizar solicitudes JSON
-app.use(express.json());
-
- 
-// Token personalizado para registrar el cuerpo de las solicitudes
-morgan.token('body', (request) => JSON.stringify(request.body));
-
-// Configuramos Morgan para mostrar el cuerpo de las solicitudes POST
-app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'));
+// Habilita el soporte para solicitudes desde otros dominios.
+app.use(cors())
 
 
 
-
-// Middleware para servir archivos estáticos desde la carpeta "dist".
+// 1- Middleware para servir archivos estáticos desde la carpeta "dist".
 app.use(express.static('dist'))
 
-// Middleware para registrar información sobre cada solicitud al servidor.
+// 2- Middleware para registrar información sobre cada solicitud al servidor.
 const requestLogger = (request, response, next) => {
   console.log('Method:', request.method) // Muestra el método HTTP (GET, POST, etc.).
   console.log('Path:  ', request.path)   // Muestra la ruta de la solicitud.
@@ -39,22 +31,15 @@ const requestLogger = (request, response, next) => {
   next() // Pasa el control al siguiente middleware.
 }
 
-// Importa el módulo CORS, que permite solicitudes de diferentes orígenes.
-const cors = require('cors');
+// 3- Middleware para analizar solicitudes JSON
+app.use(express.json());
 
-
-// Habilita el soporte para solicitudes desde otros dominios.
-app.use(cors())
-
-// Middleware para analizar datos JSON en las solicitudes entrantes.
-app.use(express.json())
-// Aplica el middleware de registro de solicitudes.
+// 4- Aplica el middleware de registro de solicitudes.
 app.use(requestLogger)
 
-// Middleware para manejar solicitudes a endpoints desconocidos.
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: 'unknown endpoint' }) // Devuelve un error 404 si la ruta no existe.
-}
+ 
+
+
 
 // Ruta para obtener todos los numeros telefonicos  
   app.get('/api/persons', (request, response) => {
@@ -69,43 +54,47 @@ const unknownEndpoint = (request, response) => {
   // Ruta para obtener un registro específico
 app.get('/api/persons/:id', (request, response) => {
   Person.findById(request.params.id).then((person) => {
+    // Condcion
+    if (person) {
+    // Si se encuentra la persona con el 'id' especificado, responde con ella en formato JSON.  
     response.json(person);
+  } else { 
+     // Si la persona con la identificación dada no existe, el servidor responderá a la solicitud con el código de estado HTTP 404 not found
+     response.status(404).end()
+  }
   }) 
+  // Manejo de errores
+  .catch (error => next (error)) // Pasa el error al middleware de manejo de errores de Express, permitiendo que el servidor lo registre o maneje según esté configurado.
 })
 
   // Ruta para obtener la información
   app.get('/info', (request, response) =>{
     // Creamos la variable con la Fecha
     const date = new Date(); // Fecha y hora actual
-    // Creamos la variable para que muestre la cantida de personas registradas
-    const count = person.length // Método para recorrer todo el array
+    
+    // Usamos el Método countDocuments para sacar la información directamente de la base de datos
+    Person.countDocuments() // Cuenta el número de personas en la base de datos
+    .then ((count) => { // Si cuenta el número entonces
 
       // Respuesta con la información solicitada
       response.send(`
         <p>Phonebook has info for ${count} people</p>
         <p>${date}</p>
     `);
+  })
+  // Manejo de errores
+  .catch (error => next (error)) // Pasa el error al middleware de manejo de errores de Express, permitiendo que el servidor lo registre o maneje según esté configurado.
 });
 
 // Definimos otra ruta DELETE para eliminar un recurso mediante su ID
-// La ruta incluye un parámetro de ruta dinámico `:id`, que se podrá capturar desde la URL.
-app.delete('/api/persons/:id', (request, response) => {
-    const id = Number(request.params.id);
-
-    // Verificar si existe el registro antes de eliminarlo
-    const personExists = persons.some(person => person.id === id);
-
-    if (personExists) {
-        // Filtrar la lista de personas para eliminar el registro
-        persons = persons.filter(person => person.id !== id);
-
-        // Responder con el código 204 (sin contenido)
-        response.status(204).end();
-    } else {
-        // Si no se encuentra el registro, devolver un error 404
-        response.status(404).send({ error: 'Person not found' });
-    }
-});
+app.delete('/api/persons/:id', (request, response, next) => {
+  Person.findByIdAndDelete(request.params.id) // Utiliza el método findByIdAndDelete para buscar el id y eliminarlo
+  .then(result => {
+    response.status(202).end() // Responde con 202 No content en ambos casos si no existe y si se eliminó
+  })
+  // Manejo de errores 
+  .catch(error => next(error)) // Pasa el error al middleware de Express
+})
 
 
 
@@ -136,14 +125,65 @@ app.post('/api/persons', (request, response) => {
       response.json(savedPerson);
     })
     // Manejo de errores
-    .catch((error) => {
-      // Si ocurre un error durante el guardado, responde con un código de estado 500 (Error interno del servidor).
-      response.status(500).json({error: 'error saving person'});
-    })
+    .catch (error => next (error)) // Pasa el error al middleware de Express
 });
 
-// Aplica el middleware para manejar endpoints desconocidos.
+// Ruta para actualizar el número de teléfono en la base de datos si el nombre ya existe.
+app.put('/app/persons/:id', (request, response, next) => {
+  // Extreamos los campos name y phone del cuerpo body
+  const {name, phone} = request.body;
+
+  // Creamos un nuevo objeto con los campos de la persona actualizado
+  const updatedPerson = {name, phone};
+
+  // Método para encontrar a la persona por el ID y actualizar
+  Person.findByIdAndUpdate(
+    request.params.id, // Es el ID de la persona que queremos actualizar. Se toma de la URL
+    updatedPerson, // Es el objeto con los nuevos valores (name y phone).
+    {
+      new: true, // Indica que queremos el documento actualizado como resultado.
+      runValidators: true, // Habilita las validaciones definidas en el modelo de Mongoose
+      context: 'query' // Asegura que las validaciones funcionen correctamente en operaciones de actualización.
+    }
+  )
+  // Resultado
+  .then(updatedPerson => { // Si la operación fue exitosa
+     // Condicion
+     if (updatedPerson) { // Si se encuentra y actualiza la persona
+     response.json(updatedPerson) // enviamos el documento actualizado como respuesta (response.json).
+     } else { // Si no la encuentra
+     response.status(404).json({error: 'Person not found'})
+     }
+  })
+    // Manejo de errores
+    .catch (error => next (error)) // Pasa el error al middleware de Express
+})
+
+
+// 5- Middleware para manejar solicitudes a endpoints desconocidos.
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: 'unknown endpoint' }) // Devuelve un error 404 si la ruta no existe.
+}
+
+// 6- Aplica el middleware para manejar endpoints desconocidos.
 app.use(unknownEndpoint)
+
+// 7- Maiddleware para manejo de errores de Express
+const errorHandler = (error, request, response, next) => {
+   // Imprime un mensaje de error en la consola
+   console.log(error.message);
+
+   // Verificacion del tipo de error
+   if (error.name === 'CastError') { // Error al no encontrar el ID
+    return response.status(400).send({error: `Malformed id`}) 
+   } else if (error.name === 'ValidationError') { // Manejo de error al registrar una nueva persona
+    return response.status(400).json({error: error.message})
+   } 
+   next(error)//Se pasa al siguiente middleware
+}
+
+// 8- Aplicar el middleware errorHandler *DEBE ESTAR AL FINAL*
+app.use(errorHandler)
   
 // Define el puerto en el que se ejecutará el servidor.
 // Si no está definido en las variables de entorno, usa el puerto 3001.
