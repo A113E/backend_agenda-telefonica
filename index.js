@@ -20,7 +20,7 @@ app.use(cors())
 
 
 // 1- Middleware para servir archivos estáticos desde la carpeta "dist".
-app.use(express.static('dist'))
+app.use(express.static('dist'));
 
 // 2- Middleware para registrar información sobre cada solicitud al servidor.
 const requestLogger = (request, response, next) => {
@@ -102,12 +102,10 @@ app.delete('/api/persons/:id', (request, response, next) => {
 app.post('/api/persons', (request, response) => {
     const body = request.body;
 
-    // Validación: Nombre y número son obligatorios
-    if (!body.name || !body.phone) {
-        return response.status(400).json({
-            error: 'name and number are required'
-        });
-    }
+   // Validar que 'name' y 'phone' están presentes
+   if (!body.name || body.phone === undefined) {
+    return response.status(400).json({ error: 'Name or phone number is missing' });
+}
 
 
 
@@ -129,7 +127,7 @@ app.post('/api/persons', (request, response) => {
 });
 
 // Ruta para actualizar el número de teléfono en la base de datos si el nombre ya existe.
-app.put('/app/persons/:id', (request, response, next) => {
+app.put('/api/persons/:id', (request, response, next) => {
   // Extreamos los campos name y phone del cuerpo body
   const {name, phone} = request.body;
 
@@ -170,17 +168,20 @@ app.use(unknownEndpoint)
 
 // 7- Maiddleware para manejo de errores de Express
 const errorHandler = (error, request, response, next) => {
-   // Imprime un mensaje de error en la consola
-   console.log(error.message);
+  // Imprime un mensaje de error en la consola
+  console.log(error.message);
 
-   // Verificacion del tipo de error
-   if (error.name === 'CastError') { // Error al no encontrar el ID
-    return response.status(400).send({error: `Malformed id`}) 
-   } else if (error.name === 'ValidationError') { // Manejo de error al registrar una nueva persona
-    return response.status(400).json({error: error.message})
-   } 
-   next(error)//Se pasa al siguiente middleware
+  // Verificacion del tipo de error
+  if (error.name === 'CastError') { // Error al no encontrar el ID
+   return response.status(400).send({error: `Malformed id`}) 
+  } else if (error.name === 'ValidationError') { // Manejo de error al registrar una nueva persona
+   return response.status(400).json({error: error.message})
+  } 
+  next(error)//Se pasa al siguiente middleware
 }
+
+  
+
 
 // 8- Aplicar el middleware errorHandler *DEBE ESTAR AL FINAL*
 app.use(errorHandler)

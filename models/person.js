@@ -23,11 +23,31 @@ mongoose.connect(url)
         console.log('error to connecting to MongoDB:', error.message);
             })
 
+
 // Definir el esquema de la base de datos (Schema)
 const personSchema = new mongoose.Schema({
-    name: String,
-    phone: String,
-})
+    name: {
+         // Validadores
+      type: String, // Tipo Cadena de Texto
+      minLength: 3, // Mínimo 3 caracteres
+      required: true, // Obligado
+    },
+    // Validadores
+    phone: {
+      type: String, // Tipo Cadena de Texto
+      required: true, // Obligado
+      minLength: 8, // Mínimo 8 caracteres
+      validate: { // Validador Personalizado
+        validator: function (v) {
+          // Validación para el formato "NN-NNNNNNN" o "NNN-NNNNNNN"
+          return /^\d{2,3}-\d+$/.test(v);
+        },
+         // Mensaje de error número inválido
+        message: (props) =>
+          `${props.value} is not a valid phone number! Format must be XX-XXXXXXX or XXX-XXXXXXX`,
+      },
+    },
+  });
 
 // Configura cómo se debe transformar la nota cuando se convierta a formato JSON (por ejemplo, al enviarla a través de una API).
 personSchema.set('toJSON', {
